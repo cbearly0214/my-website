@@ -2,7 +2,10 @@
 // 配置区域 - 请在这里配置API密钥
 // ============================================
 
-// Formspree配置（推荐使用Formspree，免费且简单）
+// 后端API配置（推荐使用自己的后端API）
+const API_ENDPOINT = '/api/contact'; // 使用 Vercel Serverless Function
+
+// Formspree配置（备选方案）
 const FORMSPREEE_ENDPOINT = 'https://formspree.io/f/YOUR_FORM_ID'; // 替换为您的Formspree表单ID
 
 // EmailJS配置（备选方案）
@@ -10,8 +13,8 @@ const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID'; // 替换为您的EmailJS服务ID
 const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID'; // 替换为您的EmailJS模板ID
 const EMAILJS_PUBLIC_KEY = 'YOUR_PUBLIC_KEY'; // 替换为您的EmailJS公钥
 
-// 使用哪个服务：'formspree' 或 'emailjs'
-const FORM_SERVICE = 'formspree'; // 默认使用Formspree
+// 使用哪个服务：'api'（自己的后端）、'formspree' 或 'emailjs'
+const FORM_SERVICE = 'api'; // 默认使用自己的后端API
 
 // ============================================
 // 移动端汉堡菜单动画
@@ -178,6 +181,31 @@ function resetFormButton(submitBtn, originalText) {
     submitBtn.innerHTML = originalText;
 }
 
+// 提交到自己的后端API
+async function submitToAPI(formData) {
+    const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            name: formData.get('name'),
+            email: formData.get('email'),
+            subject: formData.get('subject'),
+            message: formData.get('message')
+        })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+        return { success: true, data };
+    } else {
+        throw new Error(data.error || '提交失败，请稍后重试');
+    }
+}
+
 async function submitToFormspree(formData) {
     const response = await fetch(FORMSPREEE_ENDPOINT, {
         method: 'POST',
@@ -246,7 +274,10 @@ if (contactForm) {
             let result;
             
             // 根据配置选择服务
-            if (FORM_SERVICE === 'formspree') {
+            if (FORM_SERVICE === 'api') {
+                // 使用自己的后端API
+                result = await submitToAPI(formData);
+            } else if (FORM_SERVICE === 'formspree') {
                 if (FORMSPREEE_ENDPOINT.includes('YOUR_FORM_ID')) {
                     throw new Error('请先配置Formspree端点！请在script.js中设置FORMSPREEE_ENDPOINT');
                 }
@@ -262,7 +293,8 @@ if (contactForm) {
             
             // 成功
             resetFormButton(submitBtn, originalText);
-            showFormMessage(`谢谢 ${formData.get('name')}！您的消息已成功发送。我们会尽快回复您。`, true);
+            const successMessage = result.data?.message || `谢谢 ${formData.get('name')}！您的消息已成功发送。我们会尽快回复您。`;
+            showFormMessage(successMessage, true);
             contactForm.reset();
             
         } catch (error) {
